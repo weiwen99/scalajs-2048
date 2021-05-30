@@ -6,6 +6,7 @@ import org.scalajs.dom
 import org.scalajs.dom.html.{Button, Div}
 import org.scalajs.dom.raw.Element
 import org.scalajs.dom.document
+import Matrix._
 
 object Main {
 
@@ -30,8 +31,11 @@ object Main {
     M
   }
 
-  def transfer(command: Command): Unit = {
-    M = Matrix.transfer(command, M)
+  def transfer(command: Command): Boolean = {
+    val m = Matrix.transfer(command, M)
+    val r = M.isZero || M != m
+    M = m
+    r
   }
 
   def render(): Unit = {
@@ -44,9 +48,11 @@ object Main {
   }
 
   def forward(command: Command): Unit = {
-    transfer(command)
-    growth()
-    render()
+    val r = transfer(command)
+    if (r) {
+      growth()
+      render()
+    } else {}
   }
 
   def main(args: Array[String]): Unit = {

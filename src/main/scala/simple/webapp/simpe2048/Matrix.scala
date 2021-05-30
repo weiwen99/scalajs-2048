@@ -50,5 +50,6 @@ object Matrix {
         xss.map(_(i)).reverse
       }
     }
+    def isZero: Boolean = xss.forall(_.forall(_ == 0))
   }
 }
