@@ -1,150 +1,18 @@
-package simple.webapp.simpe2048
-
-import scala.util.Random
+package simple.webapp.simple2048
 
 import org.scalajs.dom
+import org.scalajs.dom.{Element, document}
 import org.scalajs.dom.html.{Button, Div}
-import org.scalajs.dom.raw.Element
-import org.scalajs.dom.document
-import Matrix._
+import simple.webapp.simple2048.Model.Block
 
-object Main {
+object SvgUI {
 
-  val random = new Random(System.currentTimeMillis())
-
-  var svgs: Vector[Vector[(Element, Element)]] = Vector.empty
-
-  val F: Vector[(Int, Int)] = (0 to 3).toVector.flatMap(x => (0 to 3).toVector.map(y => (x, y)))
-
-  var M: Vector[Vector[Int]] = Vector.fill(4)(Vector.fill(4)(0))
-
-  def growth(): Vector[Vector[Int]] = {
-    val xs = F.filter {
-      case (x, y) => M(x)(y) == 0
-    }
-    if (xs.nonEmpty) {
-      val n      = xs.length
-      val (x, y) = xs(random.nextInt(n))
-      val e      = if (random.nextInt(10) >= 8) 4 else 2
-      M = M.updated(x, M(x).updated(y, e))
-    } else {}
-    M
-  }
-
-  def transfer(command: Command): Boolean = {
-    val m = Matrix.transfer(command, M)
-    val r = M.isZero || M != m
-    M = m
-    r
-  }
-
-  def render(): Unit = {
-    0 to 3 foreach { x =>
-      0 to 3 foreach { y =>
-        svgs(x)(y)._1.setAttribute("fill", colors.getOrElse(M(x)(y), "#ffffff"))
-        svgs(x)(y)._2.textContent = if (M(x)(y) == 0) "" else M(x)(y).toString
-      }
-    }
-  }
-
-  def forward(command: Command): Unit = {
-    val r = transfer(command)
-    if (r) {
-      growth()
-      render()
-    } else {}
-  }
-
-  def main(args: Array[String]): Unit = {
-    document.addEventListener(
-      "DOMContentLoaded", { (e: dom.Event) =>
-        val svg: Element = initSvg()
-        addTouchEvnets(svg)
-        addKeyboardEvents()
-      }
-    )
-  }
-
-  def addKeyboardEvents(): Unit = {
-    document.addEventListener(
-      "keydown", { (e: dom.KeyboardEvent) =>
-        println(s"key: ${e.key}")
-        val command = e.key match {
-          case "ArrowDown" | "j"  => Command.Down
-          case "ArrowUp" | "k"    => Command.Up
-          case "ArrowLeft" | "h"  => Command.Left
-          case "ArrowRight" | "l" => Command.Right
-          case _                  => Command.Nop
-        }
-        if (command != Command.Nop) {
-          forward(command)
-        }
-      }
-    )
-  }
-
-  def addTouchEvnets(svg: Element): Unit = {
-    val msZ = (0.0, 0.0)
-    var ms  = msZ
-    var mv  = false
-    svg.addEventListener("touchstart", { (e: dom.TouchEvent) =>
-      e.preventDefault()
-      ms = (e.touches(0).clientX, e.touches(0).clientY)
-    })
-    svg.addEventListener("touchmove", { (e: dom.TouchEvent) =>
-      mv = true
-      e.preventDefault()
-    })
-    svg.addEventListener(
-      "touchend", { (e: dom.TouchEvent) =>
-        e.preventDefault()
-        println(e.changedTouches.length)
-        val (x0, y0) = ms
-        val (x1, y1) = (e.changedTouches(0).clientX, e.changedTouches(0).clientY)
-        ms = msZ
-        mv = false
-        if (math.abs(x1 - x0) > math.abs(y1 - y0)) {
-          if (x1 > x0) {
-            forward(Command.Right)
-          } else {
-            forward(Command.Left)
-          }
-        } else {
-          if (y1 > y0) {
-            forward(Command.Down)
-          } else {
-            forward(Command.Up)
-          }
-        }
-      }
-    )
-  }
-
-  val colors = Map(
-    0     -> "#ecf0f1",
-    2     -> "#049372",
-    4     -> "#2574a9",
-    8     -> "#8e44ad",
-    16    -> "#e67e22",
-    32    -> "#e74c3c",
-    64    -> "#27ae60",
-    128   -> "#f7ca18",
-    256   -> "#2c3e50",
-    512   -> "#d35400",
-    1024  -> "#f1c40f",
-    2048  -> "#8e44ad",
-    4096  -> "#cf000f",
-    8192  -> "#f9690e",
-    16384 -> "#1e824c",
-    32768 -> "#9a12b3",
-    65536 -> "#9a12b3"
-  )
-
-  def initSvg(): Element = {
+  def initSvg(updateSvgs: Vector[Vector[(Element, Element)]] => Unit)(forward: Command => Unit): Element = {
     val agents   = List("Android", "iPhone", "SymbianOS", "Windows Phone", "iPod", "iPad")
     val isMobile = agents.exists(a => dom.window.navigator.userAgent.toLowerCase.contains(a.toLowerCase))
+
+    // 计算合适的正方形主区域大小
     def genMainSize(w: Double, h: Double, k: Double) = {
-      // 计算合适的正方形主区域大小
       val min = Math.min(h, w)
       min * (1 - 2 * k)
     }
@@ -167,6 +35,7 @@ object Main {
     svg.setAttribute("width", "100%")
     svg.setAttribute("height", "100%")
     svg.setAttribute("xmlns", ns)
+
     def fg(i: Int, j: Int, n: Int, w: Int): (Element, Element) = {
       val margin      = 1.5
       val d           = w / n
@@ -198,20 +67,21 @@ object Main {
 
       (rect, text)
     }
-
-    svgs = for {
+    val svgs: Vector[Vector[(Element, Element)]] = for {
       y <- (0 to 3).toVector
     } yield (0 to 3).toVector.map(x => fg(x, y, 4, W))
+
+    updateSvgs(svgs)
 
     document.body.appendChild(container)
     container.appendChild(svg)
     if (isMobile) {
-      container.appendChild(controlPlane(W * 2 / 3))
+      container.appendChild(controlPlane(W * 2 / 3)(forward))
     }
     svg
   }
 
-  def controlPlane(height: Int): Div = {
+  def controlPlane(height: Int)(forward: Command => Unit): Div = {
     val h        = height
     val hh       = h / 3
     val fontSize = s"${h / 12}px"
@@ -259,20 +129,16 @@ object Main {
     container.style.marginTop = "30px"
     container.appendChild(d1)
 
-    up.addEventListener("click", { (e: dom.MouseEvent) =>
-      forward(Command.Up)
-    })
-    down.addEventListener("click", { (e: dom.MouseEvent) =>
-      forward(Command.Down)
-    })
-    left.addEventListener("click", { (e: dom.MouseEvent) =>
-      forward(Command.Left)
-    })
-    right.addEventListener("click", { (e: dom.MouseEvent) =>
-      forward(Command.Right)
-    })
+    def addKeyboardListener(el: Button, command: Command): Unit =
+      el.addEventListener("click", { (_: dom.MouseEvent) =>
+        forward(command)
+      })
+
+    addKeyboardListener(up, Command.Up)
+    addKeyboardListener(down, Command.Down)
+    addKeyboardListener(left, Command.Left)
+    addKeyboardListener(right, Command.Right)
 
     container
   }
-
 }

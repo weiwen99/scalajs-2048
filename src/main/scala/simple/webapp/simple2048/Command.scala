@@ -1,4 +1,4 @@
-package simple.webapp.simpe2048
+package simple.webapp.simple2048
 
 sealed trait Command
 
